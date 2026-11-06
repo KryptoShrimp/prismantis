@@ -572,6 +572,33 @@ test('no render hint when diagramHints is off', { options: { diagramHints: false
   expect(seen[0] ?? []).not.toContain(FIGURE_HINT)
 })
 
+// The desktop app with surfaces=terminal shows replies in Claude Code's own renderer, so a hint
+// asking for figure fences and copy-button code blocks would only clutter them there.
+const hintsOn = async ($: Parameters<TestBody>[0], on: Parameters<TestBody>[1], attached: readonly ('terminal' | 'desktop' | 'mobile')[]) => {
+  const seen: (readonly string[] | undefined)[] = []
+  mock.env(on, {})
+  on('session.surfaces', () => ({ value: attached }))
+  on('prompt.submit', (_, e) => {
+    seen.push(e.context)
+    return { text: e.text, context: e.context }
+  })
+  await $.prompt.submit({ text: 'show me deploys per day', wait: false, origin: { kind: 'composer' } })
+  expect(seen).toHaveLength(1)
+  return seen[0] ?? []
+}
+
+test('no render hint in the desktop app when surfaces leaves it out', { options: { surfaces: 'terminal' } }, async ($, on) => {
+  expect(await hintsOn($, on, ['desktop'])).not.toContain(FIGURE_HINT)
+})
+
+test('the terminal keeps the render hint when surfaces names it', { options: { surfaces: 'terminal' } }, async ($, on) => {
+  expect(await hintsOn($, on, ['terminal', 'mobile'])).toContain(FIGURE_HINT)
+})
+
+test('the desktop app keeps the render hint when surfaces is unset', async ($, on) => {
+  expect(await hintsOn($, on, ['desktop'])).toContain(FIGURE_HINT)
+})
+
 test('no figure hint when mermaid is off', { options: { mermaid: false } }, async ($, on) => {
   const seen: (readonly string[] | undefined)[] = []
   mock.env(on, {})

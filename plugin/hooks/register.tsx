@@ -742,6 +742,15 @@ const hintsFor = (style: Style, latex: LatexSession, nth: number, pane?: number)
   ...(style.issueHint && nth % 10 === 0 ? [ISSUE_HINT] : []),
 ]
 
+// Hints teach Claude to write for prismantis's renderer. When `surfaces` leaves out every surface
+// this session draws on (the desktop app with surfaces=terminal), Claude Code's own renderer shows
+// the reply, so the hints would only add code blocks and figure fences it draws as plain code.
+const drawsHere = async ($: EngineInterface, style: Style): Promise<boolean> => {
+  if (!style.surfaces) return true
+  const attached = await $.session.surfaces()
+  return attached.length === 0 || attached.some(surface => style.surfaces!.includes(surface))
+}
+
 const localeOf = async ($: EngineInterface, asked?: string): Promise<string> => asked ?? (await $.env.get('LC_ALL').catch(() => undefined)) ?? (await $.env.get('LANG').catch(() => undefined)) ?? ''
 
 export const register: Register = (on, options) => {
@@ -912,6 +921,7 @@ export const register: Register = (on, options) => {
     }
     await probe($, style, probes)
     if (!takesHint(e.origin)) return next(e)
+    if (!(await drawsHere($, style))) return next(e)
     if (style.diagramHints) void latexEngine($, latex)
     const hints = hintsFor(style, latex, prompts++, pane)
     return hints.length ? next({ ...e, context: [...(e.context ?? []), ...hints] }) : next(e)
